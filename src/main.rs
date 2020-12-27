@@ -1,6 +1,5 @@
 use clap::{App, Arg};
 use std::fs::File;
-use std::io::Read;
 use lines_are_rusty::*;
 use lines_are_rusty::render::*;
 
@@ -30,19 +29,7 @@ fn main() {
         .expect("Expected required filename.");
 
     // Load the file into a Vec<u8>
-    let mut f = File::open(filename).unwrap();
-    let mut line_file = Vec::<u8>::new();
-    f.read_to_end(&mut line_file).unwrap();
-
-    let max_size_file = 1024 * 1024; // 1mb, or 1024 kilobytes
-    assert!(max_size_file >= line_file.len());
-
-    // Assert fixed header.
-    assert_eq!(&line_file[0..33], "reMarkable .lines file, version=3".as_bytes());
-
-    // Read document content.
-    let content = &line_file[43..];
-    let pages = read_pages(&content, max_size_file);
+    let pages = LinesFile::new(File::open(filename).unwrap()).read_pages();
 
     println!("\ndone. read {} pages.", pages.len());
 
