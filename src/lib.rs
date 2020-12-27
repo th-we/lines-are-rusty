@@ -1,6 +1,8 @@
 use byteorder::{LittleEndian, ReadBytesExt};
 use std::fs::File;
 use std::io::Read;
+use std::io::Seek;
+use std::io::SeekFrom;
 
 pub mod render;
 
@@ -15,10 +17,16 @@ impl LinesFile {
         let mut buffer = [0; 33];
         file.read_exact(&mut buffer);
         let version = match String::from_utf8_lossy(&buffer).trim_end() {
+            "reMarkable lines with selections and layers" => panic!("Unsupported old format"),
             "reMarkable .lines file, version=3" => 3,
             "reMarkable .lines file, version=5" => 5,
             _ => panic!(),
         };
+
+        if version >= 3 {
+            // Newer files have 10 more bytes in the ASCII header that we skip
+            file.seek(SeekFrom::Current(10));
+        }
 
         LinesFile {
             version: version,
@@ -37,6 +45,13 @@ impl LinesFile {
     }
 
     pub fn read_pages(&mut self) -> Vec<Page> {
+        // From version 3(?) on, only a single page is stored per file.
+        // The number of pages is not stored in the lines file any more.
+        let num_pages = if self.version >= 3 {
+            1
+        } else {
+            self.read_number_i32()
+        };
         let num_pages = 1;
         (0..num_pages)
             .map(|_p| {
