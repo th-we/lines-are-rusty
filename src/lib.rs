@@ -30,42 +30,44 @@ impl LinesFile {
         // TODO implement if let Some(...)
         self.file.read_i32::<LittleEndian>().unwrap()
     }
+
     fn read_number_f32(&mut self) -> f32 {
         // TODO implement if let Some(...)
         self.file.read_f32::<LittleEndian>().unwrap()
     }
+
     pub fn read_pages(&mut self) -> Vec<Page> {
-        let mut pages = vec![];
         let num_pages = 1;
-        println!("p: 0 / {}", num_pages);
-        let new_page = Page {
-            layers: self.read_layers(),
-        };
-        pages.push(new_page);
-        pages
+        (0..num_pages)
+            .map(|_p| {
+                println!("p: {} / {}", _p, num_pages);
+                Page {
+                    layers: self.read_layers(),
+                }
+            })
+            .collect()
     }
 
     fn read_layers(&mut self) -> Vec<Layer> {
-        let mut layers = vec![];
         let num_layers = self.read_number_i32();
-        for _l in 0..num_layers {
-            println!("l: {} / {}", _l, num_layers);
-            let new_layer = Layer {
-                lines: self.read_lines(),
-            };
-            layers.push(new_layer);
-        }
-        layers
+        (0..num_layers)
+            .map(|_l| {
+                println!("l: {} / {}", _l, num_layers);
+                Layer {
+                    lines: self.read_lines(),
+                }
+            })
+            .collect()
     }
 
     fn read_lines(&mut self) -> Vec<Line> {
-        let mut lines = vec![];
         let num_lines = self.read_number_i32();
-        for _li in 0..num_lines {
-            println!("li: {} / {}", _li, num_lines);
-            lines.push(self.read_line());
-        }
-        lines
+        (0..num_lines)
+            .map(|_li| {
+                println!("li: {} / {}", _li, num_lines);
+                self.read_line()
+            })
+            .collect()
     }
 
     fn read_line(&mut self) -> Line {
@@ -83,13 +85,13 @@ impl LinesFile {
         }
     }
     fn read_points(&mut self) -> Vec<Point> {
-        let mut points = Vec::<Point>::default();
         let num_points = self.read_number_i32();
-        for _pt in 0..num_points {
-            println!("pt: {} / {}", _pt, num_points);
-            points.push(self.read_point());
-        }
-        points
+        (0..num_points)
+            .map(|_pt| {
+                println!("pt: {} / {}", _pt, num_points);
+                self.read_point()
+            })
+            .collect()
     }
 
     fn read_point(&mut self) -> Point {
