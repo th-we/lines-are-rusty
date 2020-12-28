@@ -33,7 +33,7 @@ fn main() {
         Ok(file) => file,
         Err(e) => {println!("{}", e); return}
     };
-    let lines_data = match LinesDataReader::read(&mut BufReader::new(file)) {
+    let lines_data = match LinesData::read(&mut BufReader::new(file)) {
         Ok(lines_data) => lines_data,
         Err(e) => {println!("{}", e); return}
     };
