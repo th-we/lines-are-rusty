@@ -1,82 +1,121 @@
 use byteorder::{LittleEndian, ReadBytesExt};
+use std::error;
+use std::fmt;
 use std::fs::File;
+use std::io;
 use std::io::Read;
 use std::io::Seek;
 use std::io::SeekFrom;
 
 pub mod render;
 
-#[derive(Debug)]
-pub struct LinesFile {
+#[derive(Debug, Default)]
+pub struct LinesData {
     pub version: i32,
-    file: File,
+    pub pages: Vec<Page>,
 }
 
-impl LinesFile {
-    pub fn new(mut file: File) -> LinesFile {
+#[derive(Debug)]
+pub struct LinesDataReader {
+    file: File,
+    version: i32,
+}
+
+#[derive(Debug, Default)]
+struct VersionError {
+    version_string: String,
+}
+
+impl VersionError {
+    fn boxed(version_string: &str) -> Box<VersionError> {
+        Box::new(VersionError {
+            version_string: version_string.to_string(),
+        })
+    }
+}
+
+impl fmt::Display for VersionError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.version_string)
+    }
+}
+
+impl error::Error for VersionError {}
+
+/// Parses data from an .rm file to `LinesData`.
+/// Possible errors are `io::Error` and `VersionError`,
+/// Currently, only .rm files of version 3 and 5 are supported.
+impl LinesDataReader {
+    pub fn read(mut file: File) -> Result<LinesData, Box<dyn error::Error>> {
         let mut buffer = [0; 33];
-        file.read_exact(&mut buffer);
-        let version = match String::from_utf8_lossy(&buffer).trim_end() {
-            "reMarkable lines with selections and layers" => panic!("Unsupported old format"),
+        file.read_exact(&mut buffer)?;
+        let untrimmed_string = String::from_utf8_lossy(&buffer);
+        let version_string = untrimmed_string.trim_end();
+        let version = match version_string {
+            "reMarkable lines with selections and layers" => {
+                return Err(VersionError::boxed(version_string))
+            }
             "reMarkable .lines file, version=3" => 3,
             "reMarkable .lines file, version=5" => 5,
-            _ => panic!(),
+            _ => return Err(VersionError::boxed(version_string)),
         };
 
         if version >= 3 {
             // Newer files have 10 more bytes in the ASCII header that we skip
-            file.seek(SeekFrom::Current(10));
+            file.seek(SeekFrom::Current(10))?;
         }
 
-        LinesFile {
-            version: version,
+        let mut reader = LinesDataReader {
             file: file,
-        }
+            version: version,
+        };
+
+        Ok(LinesData {
+            version: version,
+            pages: reader.read_pages()?,
+        })
     }
 
-    fn read_number_i32(&mut self) -> i32 {
-        // TODO implement if let Some(...)
-        self.file.read_i32::<LittleEndian>().unwrap()
+    fn read_number_i32(&mut self) -> Result<i32, io::Error> {
+        self.file.read_i32::<LittleEndian>()
     }
 
-    fn read_number_f32(&mut self) -> f32 {
-        // TODO implement if let Some(...)
-        self.file.read_f32::<LittleEndian>().unwrap()
+    fn read_number_f32(&mut self) -> Result<f32, io::Error> {
+        self.file.read_f32::<LittleEndian>()
     }
 
-    pub fn read_pages(&mut self) -> Vec<Page> {
+    fn read_pages(&mut self) -> Result<Vec<Page>, io::Error> {
         // From version 3(?) on, only a single page is stored per file.
         // The number of pages is not stored in the lines file any more.
         let num_pages = if self.version >= 3 {
             1
         } else {
-            self.read_number_i32()
+            self.read_number_i32()?
         };
-        let num_pages = 1;
         (0..num_pages)
             .map(|_p| {
                 println!("p: {} / {}", _p, num_pages);
-                Page {
-                    layers: self.read_layers(),
-                }
+                Ok(Page {
+                    layers: self.read_layers()?,
+                })
             })
             .collect()
     }
 
-    fn read_layers(&mut self) -> Vec<Layer> {
-        let num_layers = self.read_number_i32();
+    fn read_layers(&mut self) -> Result<Vec<Layer>, io::Error> {
+        let num_layers = self.read_number_i32()?;
         (0..num_layers)
             .map(|_l| {
                 println!("l: {} / {}", _l, num_layers);
-                Layer {
-                    lines: self.read_lines(),
-                }
+                Ok(Layer {
+                    lines: self.read_lines()?,
+                })
             })
             .collect()
     }
 
-    fn read_lines(&mut self) -> Vec<Line> {
-        let num_lines = self.read_number_i32();
+    fn read_lines(&mut self) -> Result<Vec<Line>, io::Error> {
+        let num_lines = self.read_number_i32()?;
         (0..num_lines)
             .map(|_li| {
                 println!("li: {} / {}", _li, num_lines);
@@ -85,22 +124,23 @@ impl LinesFile {
             .collect()
     }
 
-    fn read_line(&mut self) -> Line {
-        Line {
-            brush_type: self.read_number_i32(),
-            color: self.read_number_i32(),
-            unknown_line_attribute_1: self.read_number_i32(),
-            brush_base_size: self.read_number_f32(),
+    fn read_line(&mut self) -> Result<Line, io::Error> {
+        Ok(Line {
+            brush_type: self.read_number_i32()?,
+            color: self.read_number_i32()?,
+            unknown_line_attribute_1: self.read_number_i32()?,
+            brush_base_size: self.read_number_f32()?,
             unkonwn_line_attribute_2: if self.version >= 5 {
-                self.read_number_i32()
+                self.read_number_i32()?
             } else {
                 0
             },
-            points: self.read_points(),
-        }
+            points: self.read_points()?,
+        })
     }
-    fn read_points(&mut self) -> Vec<Point> {
-        let num_points = self.read_number_i32();
+
+    fn read_points(&mut self) -> Result<Vec<Point>, io::Error> {
+        let num_points = self.read_number_i32()?;
         (0..num_points)
             .map(|_pt| {
                 println!("pt: {} / {}", _pt, num_points);
@@ -109,15 +149,15 @@ impl LinesFile {
             .collect()
     }
 
-    fn read_point(&mut self) -> Point {
-        Point {
-            x: self.read_number_f32(),
-            y: self.read_number_f32(),
-            speed: self.read_number_f32(),
-            direction: self.read_number_f32(),
-            width: self.read_number_f32(),
-            pressure: self.read_number_f32(),
-        }
+    fn read_point(&mut self) -> Result<Point, io::Error> {
+        Ok(Point {
+            x: self.read_number_f32()?,
+            y: self.read_number_f32()?,
+            speed: self.read_number_f32()?,
+            direction: self.read_number_f32()?,
+            width: self.read_number_f32()?,
+            pressure: self.read_number_f32()?,
+        })
     }
 }
 

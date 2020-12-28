@@ -28,10 +28,16 @@ fn main() {
         .value_of("output")
         .expect("Expected required filename.");
 
-    // Load the file into a Vec<u8>
-    let pages = LinesFile::new(File::open(filename).unwrap()).read_pages();
+    let file = match File::open(filename) {
+        Ok(file) => file,
+        Err(e) => {println!("{}", e); return}
+    };
+    let lines_data = match LinesDataReader::read(file) {
+        Ok(lines_data) => lines_data,
+        Err(e) => {println!("{}", e); return}
+    };
 
-    println!("\ndone. read {} pages.", pages.len());
+    println!("\ndone. read {} pages.", lines_data.pages.len());
 
-    render(&output_filename, &pages);
+    render(&output_filename, &lines_data.pages);
 }
