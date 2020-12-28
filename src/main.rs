@@ -1,3 +1,4 @@
+use std::io::BufReader;
 use clap::{App, Arg};
 use std::fs::File;
 use lines_are_rusty::*;
@@ -32,7 +33,7 @@ fn main() {
         Ok(file) => file,
         Err(e) => {println!("{}", e); return}
     };
-    let lines_data = match LinesDataReader::read(file) {
+    let lines_data = match LinesDataReader::read(&mut BufReader::new(file)) {
         Ok(lines_data) => lines_data,
         Err(e) => {println!("{}", e); return}
     };

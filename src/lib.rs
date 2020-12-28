@@ -1,11 +1,7 @@
 use byteorder::{LittleEndian, ReadBytesExt};
 use std::error;
 use std::fmt;
-use std::fs::File;
 use std::io;
-use std::io::Read;
-use std::io::Seek;
-use std::io::SeekFrom;
 
 pub mod render;
 
@@ -15,9 +11,8 @@ pub struct LinesData {
     pub pages: Vec<Page>,
 }
 
-#[derive(Debug)]
-pub struct LinesDataReader {
-    file: File,
+pub struct LinesDataReader<'a> {
+    file: &'a mut dyn io::Read,
     version: i32,
 }
 
@@ -45,8 +40,8 @@ impl error::Error for VersionError {}
 /// Parses data from an .rm file to `LinesData`.
 /// Possible errors are `io::Error` and `VersionError`,
 /// Currently, only .rm files of version 3 and 5 are supported.
-impl LinesDataReader {
-    pub fn read(mut file: File) -> Result<LinesData, Box<dyn error::Error>> {
+impl LinesDataReader<'_> {
+    pub fn read(file: &mut dyn io::Read) -> Result<LinesData, Box<dyn error::Error>> {
         let mut buffer = [0; 33];
         file.read_exact(&mut buffer)?;
         let untrimmed_string = String::from_utf8_lossy(&buffer);
@@ -62,7 +57,7 @@ impl LinesDataReader {
 
         if version >= 3 {
             // Newer files have 10 more bytes in the ASCII header that we skip
-            file.seek(SeekFrom::Current(10))?;
+            file.read_exact(&mut [0; 10])?;
         }
 
         let mut reader = LinesDataReader {
