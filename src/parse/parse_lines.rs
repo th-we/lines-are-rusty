@@ -1,11 +1,10 @@
-use crate::*;
+use crate::{BrushType, Color, Layer, Line, LinesData, LinesError, Page, Point};
 use byteorder::{LittleEndian, ReadBytesExt};
 use std::convert::TryFrom;
 use std::io;
 
 impl LinesData {
     /// Parses data from an .rm or .lines file to `LinesData`.
-    /// Possible errors are `io::Error` and `VersionError`,
     /// Currently, only .rm files of version 3 and 5 are supported.
     pub fn parse(file: &mut dyn io::Read) -> Result<LinesData, LinesError> {
         let mut buffer = [0; 33];
@@ -112,6 +111,7 @@ impl LinesDataReader<'_> {
             .map(|_| {
                 Ok(Page {
                     layers: self.read_layers()?,
+                    id: None,
                 })
             })
             .collect()

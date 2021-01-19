@@ -44,7 +44,7 @@ fn main() -> Result<()> {
                 .long("to")
                 .takes_value(true)
                 .help("Output type. If present, overrides the type determined by the output file extension. Defaults to svg.")
-                .possible_values(&["svg", "pdf"])
+                .possible_values(&["svg", "pdf", "xfdf"])
         )
         .arg(
             Arg::with_name("debug-dump")
@@ -63,6 +63,7 @@ fn main() -> Result<()> {
         Some(output_type_string) => match output_type_string.to_lowercase().as_ref() {
             "svg" => OutputType::SVG,
             "pdf" => OutputType::PDF,
+            "xfdf" => OutputType::XFDF,
             _ => {
                 eprintln!("Unsupported output file extension {}", output_type_string);
                 exit(1);
@@ -117,8 +118,7 @@ fn main() -> Result<()> {
         Some(filename) => {
             let metadata = metadata(filename).context(format!("Can't access input file {}", filename))?;
             if metadata.is_dir() {
-                println!("Can't process directories yet");
-                exit(1);
+                process_notebook(filename, &mut output, options);
             } else {
                 let mut input = File::open(filename).context(format!("Can't open input file {}", filename))?;
                 process_single_file(&mut input, &mut output, options)?;
@@ -145,13 +145,21 @@ fn process_single_file(mut input: &mut dyn Read, mut output: &mut dyn Write, opt
                 .context("Output file needed for PDF output")?;
             lines_are_rusty::render_pdf(pdf_filename, &lines_data.pages);
         }
+        OutputType::XFDF => {
+            lines_are_rusty::render_xfdf(&mut output, &lines_data.pages[0], &opts.layer_colors)
+        }
     })
+}
+
+fn process_notebook(filename: &str, mut output: &mut dyn Write, opts: Options) {
+
 }
 
 #[derive(Debug, PartialEq)]
 enum OutputType {
     SVG,
     PDF,
+    XFDF,
 }
 
 struct Options<'a> {
@@ -160,4 +168,29 @@ struct Options<'a> {
     layer_colors: LayerColors,
     auto_crop: bool,
     debug_dump: bool,
+}
+
+trait UnwrapOrExit<T> {
+    fn unwrap_or_exit(self, message: &str) -> T;
+}
+
+impl<T, E: std::fmt::Display> UnwrapOrExit<T> for Result<T, E> {
+    fn unwrap_or_exit(self, message: &str) -> T {
+        match self {
+            Ok(val) => val,
+            Err(e) => {
+                eprintln!("{}\n{}", message, e);
+                exit(1);
+            }
+        }
+    }
+}
+
+impl<T> UnwrapOrExit<T> for Option<T> {
+    fn unwrap_or_exit(self, message: &str) -> T {
+        self.unwrap_or_else(|| {
+            eprintln!("{}", message);
+            exit(1)
+        })
+    }
 }

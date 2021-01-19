@@ -1,13 +1,16 @@
 pub mod render {
-    pub mod svg;
     pub mod pdf;
     pub mod renderlib;
+    pub mod svg;
+    pub mod xfdf;
 }
 pub mod parse {
     pub mod parse_lines;
 }
+use lopdf;
 pub use render::pdf::render_pdf;
 pub use render::svg::render_svg;
+pub use render::xfdf::render_xfdf;
 use std::ops::{Add, Div, Mul, Sub};
 use thiserror::Error;
 
@@ -31,6 +34,14 @@ pub enum LinesError {
     TryFromIntError(#[from] std::num::TryFromIntError),
 }
 
+pub struct Document {
+    pub version: i32,
+    pub pages: Vec<Page>,
+    pub file_type: FileType,
+    pub orientation: Orientation,
+    pub transform: [f32; 9],
+}
+
 #[derive(Debug, Default)]
 pub struct LinesData {
     pub version: i32,
@@ -40,6 +51,7 @@ pub struct LinesData {
 #[derive(Default, Debug)]
 pub struct Page {
     pub layers: Vec<Layer>,
+    pub id: Option<String>,
 }
 
 #[derive(Default, Debug)]
@@ -340,4 +352,15 @@ impl Div<f32> for DirectionVec {
 
 pub struct LayerColors {
     pub colors: Vec<(String, String, String)>,
+}
+
+pub enum FileType {
+    Notebook,
+    Epub, // Could use Epub(EpubDoc) with the epub crate
+    Pdf(lopdf::Document),
+}
+
+pub enum Orientation {
+    Landscape,
+    Portrait,
 }
