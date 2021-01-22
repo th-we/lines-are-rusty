@@ -32,14 +32,20 @@ pub enum LinesError {
 
     #[error(transparent)]
     TryFromIntError(#[from] std::num::TryFromIntError),
+
+    #[error(transparent)]
+    JsonError(#[from] json::JsonError),
+
+    #[error("Unexpected JSON structure: {0}")]
+    JsonStructure(String),
 }
 
 pub struct Document {
-    pub version: i32,
-    pub pages: Vec<Page>,
-    pub file_type: FileType,
-    pub orientation: Orientation,
-    pub transform: [f32; 9],
+    // pub version: Result<i32, LinesError>,
+    // pub pages: Vec<Page>,
+    // pub document_type: Result<DocumentType, LinesError>,
+    pub orientation: Result<Orientation, LinesError>,
+    // pub transform: Result<[f32; 9], LinesError>,
 }
 
 #[derive(Debug, Default)]
