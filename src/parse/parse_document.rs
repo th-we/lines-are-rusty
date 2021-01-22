@@ -23,8 +23,10 @@ impl Document {
     /// with an array of all theses UUIDs.
     pub fn load(doc_path: &Path) -> Result<Document, LinesError> {
         let content_json = get_content_json(doc_path)?;
-        let orientation = get_orientation(content_json);
-        Ok(Document { orientation })
+        Ok(Document {
+            orientation: get_orientation(&content_json),
+            document_type: get_document_type(doc_path, &content_json)
+        })
     }
 }
 
@@ -38,9 +40,14 @@ fn test_load() {
         doc.orientation.unwrap_or_else(|e| panic!("{}", e)),
         Orientation::Portrait
     );
+    match doc.document_type {
+        Err(e) => panic!("{}", e),
+        Ok(DocumentType::Pdf(_)) => {},
+        _ => panic!("Expected PDF document"),
+    }
 }
 
-fn get_orientation(object: json::object::Object) -> Result<Orientation, LinesError> {
+fn get_orientation(object: &json::object::Object) -> Result<Orientation, LinesError> {
     Ok(match get_json_string(&object, "orientation")?.as_ref() {
         "landscape" => Orientation::Landscape,
         "portrait" => Orientation::Portrait,
@@ -51,8 +58,24 @@ fn get_orientation(object: json::object::Object) -> Result<Orientation, LinesErr
     })
 }
 
+fn get_document_type(doc_path: &Path, object: &json::object::Object) -> Result<DocumentType, LinesError> {
+    Ok(match get_json_string(&object, "fileType")?.as_ref() {
+        "pdf" => {
+            let mut path = PathBuf::from(doc_path);
+            path.set_extension("pdf");
+            DocumentType::Pdf(lopdf::Document::load(path)?)
+        },
+        "epub" => DocumentType::Epub,
+        "notebook" => DocumentType::Notebook,
+        s => Err(LinesError::JsonStructure(format!(
+            "{} is not a recognized document type",
+            s
+        )))?,
+    })
+}
+
 fn get_json_string(object: &json::object::Object, key: &str) -> Result<String, LinesError> {
-    match object.get("orientation") {
+    match object.get(key) {
         None => Err(LinesError::JsonStructure(format!("Missing {} entry", key))),
         // JsonValue knows two types of strings: String and Short
         Some(JsonValue::String(s)) => Ok(s.to_string()),

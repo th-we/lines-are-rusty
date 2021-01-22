@@ -5,6 +5,7 @@ pub mod render {
     pub mod xfdf;
 }
 pub mod parse {
+    pub mod parse_document;
     pub mod parse_lines;
 }
 use lopdf;
@@ -12,6 +13,7 @@ pub use render::pdf::render_pdf;
 pub use render::svg::render_svg;
 pub use render::xfdf::render_xfdf;
 use std::ops::{Add, Div, Mul, Sub};
+use std::path::Path;
 use thiserror::Error;
 
 use std::convert::TryFrom;
@@ -36,6 +38,9 @@ pub enum LinesError {
     #[error(transparent)]
     JsonError(#[from] json::JsonError),
 
+    #[error(transparent)]
+    PdfError(#[from] lopdf::Error),
+
     #[error("Unexpected JSON structure: {0}")]
     JsonStructure(String),
 }
@@ -43,7 +48,7 @@ pub enum LinesError {
 pub struct Document {
     // pub version: Result<i32, LinesError>,
     // pub pages: Vec<Page>,
-    // pub document_type: Result<DocumentType, LinesError>,
+    pub document_type: Result<DocumentType, LinesError>,
     pub orientation: Result<Orientation, LinesError>,
     // pub transform: Result<[f32; 9], LinesError>,
 }
@@ -63,6 +68,7 @@ pub struct Page {
 #[derive(Default, Debug)]
 pub struct Layer {
     pub lines: Vec<Line>,
+    // pub name: Option<String>,
 }
 
 #[derive(Debug)]
@@ -360,12 +366,13 @@ pub struct LayerColors {
     pub colors: Vec<(String, String, String)>,
 }
 
-pub enum FileType {
+pub enum DocumentType {
     Notebook,
     Epub, // Could use Epub(EpubDoc) with the epub crate
     Pdf(lopdf::Document),
 }
 
+#[derive(Debug, PartialEq)]
 pub enum Orientation {
     Landscape,
     Portrait,
