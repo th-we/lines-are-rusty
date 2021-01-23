@@ -29,6 +29,9 @@ pub enum LinesError {
     #[error("Unknown color: {0}")]
     UnknownColor(i32),
 
+    #[error("Lines files have mixed versions")]
+    VersionError(String),
+
     #[error(transparent)]
     IOError(#[from] std::io::Error),
 
@@ -46,8 +49,8 @@ pub enum LinesError {
 }
 
 pub struct Document {
-    // pub version: Result<i32, LinesError>,
-    // pub pages: Vec<Page>,
+    pub version: Result<i32, LinesError>,
+    pub pages: Vec<Page>,
     pub document_type: Result<DocumentType, LinesError>,
     pub orientation: Result<Orientation, LinesError>,
     // pub transform: Result<[f32; 9], LinesError>,

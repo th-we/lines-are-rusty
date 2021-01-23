@@ -1,7 +1,7 @@
-use crate::{Document, LinesError, Orientation};
+use crate::{Document, DocumentType, LinesData, LinesError, Orientation, Page};
 use json::{self, JsonValue};
 use std::{
-    fs::{self},
+    fs::{self, File},
     path::{Path, PathBuf},
 };
 
@@ -23,9 +23,12 @@ impl Document {
     /// with an array of all theses UUIDs.
     pub fn load(doc_path: &Path) -> Result<Document, LinesError> {
         let content_json = get_content_json(doc_path)?;
+        let (pages, version) = get_pages(doc_path, &content_json)?;
         Ok(Document {
             orientation: get_orientation(&content_json),
-            document_type: get_document_type(doc_path, &content_json)
+            document_type: get_document_type(doc_path, &content_json),
+            pages,
+            version,
         })
     }
 }
@@ -42,9 +45,15 @@ fn test_load() {
     );
     match doc.document_type {
         Err(e) => panic!("{}", e),
-        Ok(DocumentType::Pdf(_)) => {},
+        Ok(DocumentType::Pdf(_)) => {}
         _ => panic!("Expected PDF document"),
     }
+    assert_eq!(
+        5,
+        doc.version
+            .unwrap_or_else(|_| panic!("Version could not be determined"))
+    );
+    assert_eq!(1, doc.pages.len());
 }
 
 fn get_orientation(object: &json::object::Object) -> Result<Orientation, LinesError> {
@@ -58,13 +67,16 @@ fn get_orientation(object: &json::object::Object) -> Result<Orientation, LinesEr
     })
 }
 
-fn get_document_type(doc_path: &Path, object: &json::object::Object) -> Result<DocumentType, LinesError> {
+fn get_document_type(
+    doc_path: &Path,
+    object: &json::object::Object,
+) -> Result<DocumentType, LinesError> {
     Ok(match get_json_string(&object, "fileType")?.as_ref() {
         "pdf" => {
             let mut path = PathBuf::from(doc_path);
             path.set_extension("pdf");
             DocumentType::Pdf(lopdf::Document::load(path)?)
-        },
+        }
         "epub" => DocumentType::Epub,
         "notebook" => DocumentType::Notebook,
         s => Err(LinesError::JsonStructure(format!(
@@ -97,4 +109,49 @@ fn get_content_json(doc_path: &Path) -> Result<json::object::Object, LinesError>
             "Expected an object at top level of .content JSON file"
         ))),
     }
+}
+
+/// Returns the pages and the found reMarkable file format versions
+fn get_pages(
+    doc_path: &Path,
+    content_json: &json::object::Object,
+) -> Result<(Vec<Page>, Result<i32, LinesError>), LinesError> {
+    // TODO: Also read *-metadata.json for layer names
+    let page_id_array = match content_json.get("pages") {
+        Some(JsonValue::Array(array)) => Ok(array),
+        _ => Err(LinesError::JsonStructure("Mising pages array".to_string())),
+    }?;
+    let mut page_ids = Vec::with_capacity(page_id_array.len());
+    for id_json_value in page_id_array {
+        match id_json_value {
+            JsonValue::String(id) => page_ids.push(id.to_string()),
+            JsonValue::Short(id) => page_ids.push(id.to_string()),
+            _ => {
+                return Err(LinesError::JsonStructure(
+                    "Values of the `pages` array must be strings".to_string(),
+                ))
+            }
+        }
+    }
+    let mut pages = Vec::with_capacity(page_ids.len());
+    const UNSET: i32 = -1;
+    let mut version = if page_ids.len() == 0 {
+        Err(LinesError::VersionError("Can't determine version for document without pages".to_string()))
+    } else {
+        Ok(UNSET)
+    };
+    for id in page_ids {
+        let mut file = File::open(doc_path.join(format!("{}.rm", id)))?;
+        let lines_data = LinesData::parse(&mut file)?;
+        version = match version {
+            Err(e) => Err(e),
+            Ok(UNSET) => Ok(lines_data.version),
+            Ok(version) if version == lines_data.version => Ok(version),
+            _ => Err(LinesError::VersionError("Mixed versions".to_string())),
+        };
+        for page in lines_data.pages {
+            pages.push(page);
+        }
+    }
+    Ok((pages, version))
 }

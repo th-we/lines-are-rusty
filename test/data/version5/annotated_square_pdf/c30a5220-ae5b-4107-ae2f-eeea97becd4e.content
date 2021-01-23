@@ -1,0 +1,28 @@
+{
+    "coverPageNumber": 0,
+    "dummyDocument": false,
+    "extraMetadata": {
+    },
+    "fileType": "pdf",
+    "fontName": "",
+    "lineHeight": -1,
+    "margins": 100,
+    "orientation": "portrait",
+    "pageCount": 1,
+    "pages": [
+        "21c226eb-04d0-4000-8f56-3b6f3f83cc95"
+    ],
+    "textAlignment": "left",
+    "textScale": 1,
+    "transform": {
+        "m11": 1,
+        "m12": 0,
+        "m13": 0,
+        "m21": 0,
+        "m22": 1,
+        "m23": 0,
+        "m31": 0,
+        "m32": 0,
+        "m33": 1
+    }
+}
